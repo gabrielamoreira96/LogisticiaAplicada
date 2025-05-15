@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>ARVORE DE CAMINHO OU PROGRAMAÇÃO DINÂMICA DE ROTAS</title>
+  <style>
+
+    body   {
+              display: flex;
+              flex-direction: column;
+              align-items: center
+            }
+
+    canvas { 
+              border: 2px solid black; 
+              margin-top: 10px; 
+              border-radius: 10px;
+            }
+
+    button { 
+              margin: 5px;
+              height: 30px;  
+              border-radius: 5px;
+              border: none;
+            }
+    button.ativo {
+              background-color: rgb(151, 150, 150);
+              color: #ffffff;
+              font-weight: bold;
+            }
+            
+  </style>
+</head>
+<body>
+
+  <h3>ARVORE DE CAMINHO OU PROGRAMAÇÃO DINAMICA DE ROTAS</h3>
+  <section>
+    <button class="add" onclick="setMode('add')">➕ Adicionar Ponto</button>
+    <button class="connect" onclick="setMode('connect')">🔗 Conectar Pontos</button>
+    <button class="start" onclick="setMode('start')">🏁 Definir Origem</button>
+    <button class="end" onclick="setMode('end')">🎯 Definir Destino</button>
+    <button onclick="calcularCaminho()">🧭 Calcular Rota</button>  
+  </section>
+
+  <canvas id="tela" width="1000" height="600"></canvas>
+
+  <script>
+    const tela = document.getElementById("tela");
+    const ctx = tela.getContext("2d");
+
+    let pontos = [];    // Lista dos pontos desenhados
+    let ligacoes = [];  // Ligações com peso
+    let modo = "";   // Modo atual
+    let selecionado = null; // Estado temporariamente escolhido para conexão
+    let origem = null;
+    let destino = null;
+
+    function setMode(novoModo) {
+      modo = novoModo;
+      selecionado = null;
+      document.querySelectorAll('section button').forEach(botao => {
+      botao.classList.remove('ativo');
+      });
+      const botaoAtivo = document.querySelector(`button.${modo}`);
+      if (botaoAtivo) {
+        botaoAtivo.classList.add('ativo');
+      }
+    }
+    tela.addEventListener("click", function(e) {
+      const x = e.offsetX;
+      const y = e.offsetY;
+      // compara o ponto clicado com os pontos de dentro do array pontos
+      const pontoClicado = pontos.find(p => Math.hypot(p.x - x, p.y - y) < 10);
+      // p.x (ponto existente) - x (ponto do clique), p.y(ponto existente) - y (ponto do clique)
+      if (modo === "add") {
+        // math.abs verifica se a diferença entre os pontos é menor que 10px
+        const jaExiste = pontos.some(p => Math.abs(p.x - x) < 10 && Math.abs(p.y - y) < 10);
+        if(!jaExiste){
+          pontos.push(
+          { 
+            id: pontos.length, 
+            x, 
+            y 
+          }
+        )}else{
+            alert("Não é permitido sobrepor um Ponto")
+          }
+        
+      } else if (modo === "connect") {
+        if (pontoClicado) {
+          if (!selecionado) {
+            selecionado = pontoClicado;
+          } else if (selecionado.id === pontoClicado.id){
+              alert("Não é permitido ligar um ponto a ele mesmo.")
+          } else {
+                const peso = parseFloat(prompt("Peso da ligação:", ""));
+                  if (!isNaN(peso)) {
+                    ligacoes.push({ de: selecionado.id, para: pontoClicado.id, peso });
+                    ligacoes.push({ de: pontoClicado.id, para: selecionado.id, peso }); 
+                  }
+                selecionado = null;
+                }            
+        }
+      } else if (modo === "start" && pontoClicado) {
+        origem = pontoClicado.id;
+      } else if (modo === "end" && pontoClicado) {
+        destino = pontoClicado.id;
+      }
+
+      desenhar();
+    });
+
+    function desenhar() {
+      ctx.clearRect(0, 0, tela.width, tela.height);
+      for (const lig of ligacoes) {
+        const a = pontos[lig.de];
+        const b = pontos[lig.para];
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = "#ccc";
+        ctx.stroke();
+        ctx.fillText(lig.peso, (a.x + b.x)/2, (a.y + b.y)/2 - 10);
+        // ctx.fillText(lig.peso, (a.x + b.x)/2, (a.y + b.y)/2);
+      }
+      
+      for (const p of pontos) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = p.id === origem ? "green" : p.id === destino ? "red" : "skyblue";
+        ctx.fill();
+        ctx.fillStyle = "black";
+        ctx.fillText(p.id, p.x - 4, p.y + 4);
+      }
+    }
+
+    function calcularCaminho() {
+      if (origem === null || destino === null) {
+        alert("Escolha origem e destino!");
+        return;
+      }
+
+      const dist = Array(pontos.length).fill(Infinity);
+      const anterior = Array(pontos.length).fill(null);
+      const visitados = new Set();
+
+      dist[origem] = 0;
+
+      while (visitados.size < pontos.length) {
+        let atual = null;
+        let menor = Infinity;
+
+        for (let i = 0; i < dist.length; i++) {
+          if (!visitados.has(i) && dist[i] < menor) {
+            menor = dist[i];
+            atual = i;
+          }
+        }
+
+        if (atual === null) break;
+        visitados.add(atual); 
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        // lig vai ser cada ponto o "DE:" cada ponto é a origem e o "PARA:" o proximo ponto com menor peso 
+        // o "DE:" do "atual" vai filtrar todas as ligações possiveis do ponto e somar o alt
+        for (const lig of ligacoes.filter(l => l.de === atual)) {
+          const alt = dist[atual] + lig.peso;
+
+          console.log("Esse é o dist[lig.de] " + dist[lig.de])
+          console.log("Esse é o dist[lig.para] " + dist[lig.para])
+          // dist[lig.para] é a menor distância conhecida atualmente para chegar ao ponto de destino
+          // na hora que identificar um alt menor que o anterior, substitui 
+          // 
+          if (alt < dist[lig.para]) {
+            dist[lig.para] = alt;
+            anterior[lig.para] = atual;
+          }
+        }
+      }
+
+      let caminho = [];
+      for (let i = destino; i !== null; i = anterior[i]) {
+        caminho.push(i);
+      }
+      caminho.reverse();
+
+      desenhar();
+
+      for (let i = 0; i < caminho.length - 1; i++) {
+        const a = pontos[caminho[i]];
+        const b = pontos[caminho[i+1]];
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = "blue";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      if(dist[destino] === Infinity){
+        alert("Impossível calcular")
+      }else{
+        alert("Caminho: " + caminho.join(" → ") + "\nCusto: " + dist[destino]);
+      }
+    }
+  </script>
+
+</body>
+</html>
